@@ -9,23 +9,33 @@
 function solve2Sat(ins) {
   ins = cleanIns(ins);
 
+  var startOn = Date.now();
+
+  var rulesDict = createRulesDictionary(ins);
+
   var bits = calculateBits(ins);
   bits = Object.keys(bits);
-
-  console.log("Bits is", bits.length);
 
   var endpoint1 = Math.round(Math.log(bits.length) / Math.LN2);
   for(var i = 0; i <= endpoint1; i++) {
     var assignment = makeRandomAssignment(ins);
 
-    console.log("Trial", i, "of", endpoint1);
+    var previousChanged, previousUnsat;
+
+    console.log("Solve sat", "Try", i, "of", endpoint1);
 
     var endpoint2 = bits.length;
     for(var j = 0; j <= endpoint2; j++) {
-      var unsat = checkSat(assignment, ins);
+
+      var loopStart = Date.now();
+
+      var progress = ((j/endpoint2)*100);
+
+      if(Math.random()*10 > 9) console.log("Done", progress, "in", Date.now() - startOn);
+
+      var unsat = checkSat(assignment, ins, previousUnsat, previousChanged, rulesDict);
 
       if(unsat.length == 0) {
-        console.log("Found", assignment);
         return true;
 
       } else {
@@ -33,10 +43,15 @@ function solve2Sat(ins) {
         randrule = unsat[randrule];
 
         var randbit = Math.floor(Math.random() * 2);
-        randbit = Math.abs(unsat[randbit]);
+        randbit = Math.abs(randrule[randbit]);
 
         assignment[randbit] = !assignment[randbit];
+
+        previousChanged = randbit;
+        previousUnsat = unsat;
       }
+
+//      console.log("Loop ended by", Date.now() - loopStart);
 
     }
   }
@@ -92,12 +107,10 @@ function createRulesDictionary(ins) {
 }
 
 // @return {Array.<Array>}
-function checkSat(assignment, ins) {
-  var r = [];
+function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 
-  for(var i in ins) {
-    var rule = ins[i];
-
+  // @return {Boolean} true - satisfied, otherwise false
+  function checkRule(rule) {
     var first = rule[0];
     var second = rule[1];
 
@@ -107,12 +120,76 @@ function checkSat(assignment, ins) {
     var firstIs = assignment[Math.abs(first)];
     var secondIs = assignment[Math.abs(second)];
 
-    if(firstShould != firstIs && secondShould != secondIs) {
-      r.push(rule);
-    }
+    return firstShould == firstIs || secondShould == secondIs;
   }
 
-  return r;
+  function checkFull() {
+    var r = [];
+
+//    console.log("Check sat", "Full", ins.length);
+
+    for(var i in ins) {
+      var rule = ins[i];
+      if(!checkRule(rule)) {
+        r.push(rule);
+      }
+    }
+
+    return r;
+  }
+
+  function checkChanged() {
+    previousUnsat = previousUnsat.slice(0);
+
+    var currentUnsat = [];
+    var unsatRulesIds = previousUnsat.map(function(r){ return r[0]+r[1] });
+
+    var dictEntry = rulesDict[changedBit];
+
+    var excludedIndices = [];
+
+    for(var i = 0; i < dictEntry.length; i++) {
+      var rule = dictEntry[i];
+      var ruleId = rule[0]+rule[1];
+
+      var ruleI = unsatRulesIds.indexOf(ruleId);
+
+      if(checkRule(rule)) {
+
+        if(ruleI != -1) {
+          excludedIndices.push(ruleI);
+        }
+
+      } else if(ruleI == -1) {
+        currentUnsat.push(rule);
+      }
+    }
+
+    var debugS = Date.now();
+    var del = 0;
+    for(var z in excludedIndices){
+      previousUnsat.splice(excludedIndices[z] - del, 1);
+      del++;
+    }
+//    console.log("Ended by", Date.now() - debugS);
+
+    return previousUnsat.concat(currentUnsat);
+
+  }
+
+  var debugProcStart = Date.now();
+
+  var result;
+
+  if(typeof(previousUnsat) != "undefined" && typeof(changedBit) != "undefined") {
+    result = checkChanged();
+  } else {
+    result = checkFull();
+  }
+
+//  console.log("Check sat end in", Date.now() - debugProcStart);
+  return result;
+
 }
 
 // Cleans instance from unnecessary rules
@@ -123,8 +200,12 @@ function cleanIns(ins) {
   bitsa = bitsa.map(function(b){ return parseInt(b); });
   var constant = {};
 
+  var debugS = Date.now();
+
   for(var i in bitsa) {
-    console.log("Preprocessing", i, "of", bitsa.length);
+
+    if(i%100 == 0) console.log("Preprocessing", i, "of", bitsa.length, Date.now() - debugS);
+
     var bit = bitsa[i];
     var rulesi = [];
 
@@ -132,6 +213,7 @@ function cleanIns(ins) {
 
     var value;
 
+    var debugS2 = Date.now();
     for(var j in inscopy) {
       var first = inscopy[j][0];
       var second = inscopy[j][1];
@@ -154,13 +236,14 @@ function cleanIns(ins) {
         }
       }
     }
+    console.log("Ended by", Date.now() - debugS2);
 
     if(isconst && rulesi.length > 0) {
       constant[bit] = value;
 
       var throwaway = function(i) {
-        var r = inscopy.slice(0, i).concat(inscopy.slice(i + 1, Infinity));
-        return r;
+        inscopy.splice(i, 1);
+        return inscopy;
       }
 
       inscopy = throwaway(rulesi[0]);
@@ -222,4 +305,11 @@ console.log("Case 6:", solve2Sat(simpleUnsat)==false);
 console.log("Case 7:", cleanIns(cleanableSat));
 
 console.log("Case 8:", createRulesDictionary(simple));
+
+// section: solutions
+
+
+
+
+
 
