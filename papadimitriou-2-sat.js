@@ -7,7 +7,7 @@
 // @param {Array.<Array>} ins Instance of a problem
 // @return {Boolean} true - satisfiable, false otherwise
 function solve2Sat(ins) {
-  ins = cleanIns2(ins);
+  ins = cleanInstance(ins);
 
   var startOn = Date.now();
 
@@ -176,7 +176,7 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 }
 
 // Clear instance from unnecessary rules
-function cleanIns2(ins) {
+function cleanInstance(ins) {
   ins = ins.slice(0);
 
   var lookup, constants;
@@ -279,8 +279,8 @@ console.log("Case 5:", checkSat(correctSimpleAssignment, simple).length == 0, ch
 
 console.log("Case 6:", solve2Sat(simpleUnsat)==false);
 
-console.log("Case 7a:", cleanIns2(cleanableSat));
-console.log("Case 7b:", cleanIns2(simpleUnsat));
+console.log("Case 7a:", cleanInstance(cleanableSat));
+console.log("Case 7b:", cleanInstance(simpleUnsat));
 
 console.log("Case 8:", createRulesDictionary(simple));
 
