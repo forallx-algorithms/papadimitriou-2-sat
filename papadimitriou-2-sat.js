@@ -7,7 +7,7 @@
 // @param {Array.<Array>} ins Instance of a problem
 // @return {Boolean} true - satisfiable, false otherwise
 function solve2Sat(ins) {
-  ins = cleanIns(ins);
+  ins = cleanIns2(ins);
 
   var startOn = Date.now();
 
@@ -17,18 +17,14 @@ function solve2Sat(ins) {
   bits = Object.keys(bits);
 
   var endpoint1 = Math.round(Math.log(bits.length) / Math.LN2);
+  var endpoint2 = 2 * Math.pow(bits.length, 2);
   for(var i = 0; i <= endpoint1; i++) {
     var assignment = makeRandomAssignment(ins);
 
-    var previousChanged, previousUnsat;
+    var previousChanged = undefined,
+        previousUnsat = undefined;
 
-    console.log("Solve sat", "Try", i, "of", endpoint1);
-
-    var endpoint2 = bits.length;
     for(var j = 0; j <= endpoint2; j++) {
-
-      var loopStart = Date.now();
-
       var progress = ((j/endpoint2)*100);
 
       if(Math.random()*10 > 9) console.log("Done", progress, "in", Date.now() - startOn);
@@ -50,9 +46,6 @@ function solve2Sat(ins) {
         previousChanged = randbit;
         previousUnsat = unsat;
       }
-
-//      console.log("Loop ended by", Date.now() - loopStart);
-
     }
   }
 
@@ -94,7 +87,7 @@ function createRulesDictionary(ins) {
   var pushToDict = function(id, rule) {
     if(!r[id]) r[id] = [];
     r[id].push(rule);
-  }
+  };
 
   for(var i in ins) {
     var rule = ins[i];
@@ -125,9 +118,6 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 
   function checkFull() {
     var r = [];
-
-//    console.log("Check sat", "Full", ins.length);
-
     for(var i in ins) {
       var rule = ins[i];
       if(!checkRule(rule)) {
@@ -142,7 +132,7 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
     previousUnsat = previousUnsat.slice(0);
 
     var currentUnsat = [];
-    var unsatRulesIds = previousUnsat.map(function(r){ return r[0]+r[1] });
+    var unsatRulesIds = previousUnsat.map(function(r){ return cantorPairing(r[0], r[1]); });
 
     var dictEntry = rulesDict[changedBit];
 
@@ -150,7 +140,7 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 
     for(var i = 0; i < dictEntry.length; i++) {
       var rule = dictEntry[i];
-      var ruleId = rule[0]+rule[1];
+      var ruleId = cantorPairing(rule[0], rule[1]);
 
       var ruleI = unsatRulesIds.indexOf(ruleId);
 
@@ -165,100 +155,87 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
       }
     }
 
-    var debugS = Date.now();
     var del = 0;
     for(var z in excludedIndices){
       previousUnsat.splice(excludedIndices[z] - del, 1);
       del++;
     }
-//    console.log("Ended by", Date.now() - debugS);
-
     return previousUnsat.concat(currentUnsat);
 
   }
 
-  var debugProcStart = Date.now();
-
   var result;
-
   if(typeof(previousUnsat) != "undefined" && typeof(changedBit) != "undefined") {
     result = checkChanged();
   } else {
     result = checkFull();
   }
 
-//  console.log("Check sat end in", Date.now() - debugProcStart);
   return result;
 
 }
 
-// Cleans instance from unnecessary rules
-function cleanIns(ins) {
-  var inscopy = ins.slice(0, Infinity);
-  var bits = calculateBits(ins);
-  var bitsa = Object.keys(bits);
-  bitsa = bitsa.map(function(b){ return parseInt(b); });
-  var constant = {};
+// Clear instance from unnecessary rules
+function cleanIns2(ins) {
+  ins = ins.slice(0);
 
-  var debugS = Date.now();
+  var lookup, constants;
 
-  for(var i in bitsa) {
+  var checkInstance = function(v) {
+    var cv = v * -1;
+    var skey = Math.abs(v);
 
-    if(i%100 == 0) console.log("Preprocessing", i, "of", bitsa.length, Date.now() - debugS);
+    var notAConstant = lookup[cv] != undefined;
 
-    var bit = bitsa[i];
-    var rulesi = [];
-
-    var isconst = true;
-
-    var value;
-
-    var debugS2 = Date.now();
-    for(var j in inscopy) {
-      var first = inscopy[j][0];
-      var second = inscopy[j][1];
-
-      var isf = Math.abs(first) == bit;
-      var iss = Math.abs(second) == bit;
-
-      if(isf || iss) {
-        rulesi.push(parseInt(j));
-        var cvalue;
-
-        if(isf) cvalue = first >= 0;
-        if(iss) cvalue = second >= 0;
-
-        if(value == undefined) value = cvalue;
-
-        if(value != cvalue) {
-          isconst = false;
-          break;
-        }
-      }
+    if(notAConstant) {
+      delete constants[skey];
+    } else {
+      constants[skey] = true;
     }
-    console.log("Ended by", Date.now() - debugS2);
+  };
 
-    if(isconst && rulesi.length > 0) {
-      constant[bit] = value;
+  while(true) {
 
-      var throwaway = function(i) {
-        inscopy.splice(i, 1);
-        return inscopy;
-      }
+    lookup = {};
+    constants = {};
 
-      inscopy = throwaway(rulesi[0]);
+    for(var i in ins) {
 
-      for(var i = 1; i < rulesi.length; i++) {
-        inscopy = throwaway(rulesi[i] - 1);
-      }
+      console.log("Check i", i);
+
+      var rule = ins[i];
+      var f = rule[0], s = rule[1];
+
+      lookup[f] = true;
+      lookup[s] = true;
+
+      checkInstance(f);
+      checkInstance(s);
     }
+
+    if(Object.keys(constants).length == 0) break;
+
+    ins = ins.filter(function(r, i){
+      return constants[Math.abs(r[0])] == undefined && constants[Math.abs(r[1])] == undefined;
+    });
   }
 
-  return inscopy;
+  return ins;
 }
 
-// section: Tests
+// Cantor pairing function
+// http://en.wikipedia.org/wiki/Pairing_function
+// @param {Integer} a
+// @param {Integer} b
+// @return {Integer}
+function cantorPairing(a, b) {
+  var ca = a >= 0 ? 2 * a : -2 * a - 1;
+  var cb = b >= 0 ? 2 * b : -2 * b - 1;
+  return ((ca + cb) * (ca + cb + 1))/2 + ca;
+}
 
+
+// section: Tests
 var cleanableSat = [
   [1, 2],
   [-2, 1],
@@ -290,7 +267,7 @@ var correctSimpleAssignment = {
   '2': false,
   '3': true,
   '4': false
-}
+};
 
 console.log("Case 1:", solve2Sat(simple)==true);
 
@@ -302,13 +279,10 @@ console.log("Case 5:", checkSat(correctSimpleAssignment, simple).length == 0, ch
 
 console.log("Case 6:", solve2Sat(simpleUnsat)==false);
 
-console.log("Case 7:", cleanIns(cleanableSat));
+console.log("Case 7a:", cleanIns2(cleanableSat));
+console.log("Case 7b:", cleanIns2(simpleUnsat));
 
 console.log("Case 8:", createRulesDictionary(simple));
-
-// section: solutions
-
-
 
 
 
