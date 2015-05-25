@@ -1,20 +1,18 @@
 /*
+  Papadimitriou 2-sat alghorithm
 
   @author Evgeniy Kuznetsov
   @date 11.05.2015
 */
 
+// Papadimitriou 2-sat
 // @param {Array.<Array>} ins Instance of a problem
 // @return {Boolean} true - satisfiable, false otherwise
 function solve2Sat(ins) {
   ins = cleanInstance(ins);
 
-  var startOn = Date.now();
-
   var rulesDict = createRulesDictionary(ins);
-
-  var bits = calculateBits(ins);
-  bits = Object.keys(bits);
+  var bits = Object.keys(rulesDict);
 
   var endpoint1 = Math.round(Math.log(bits.length) / Math.LN2);
   var endpoint2 = 2 * Math.pow(bits.length, 2);
@@ -25,10 +23,6 @@ function solve2Sat(ins) {
         previousUnsat = undefined;
 
     for(var j = 0; j <= endpoint2; j++) {
-      var progress = ((j/endpoint2)*100);
-
-      if(Math.random()*10 > 9) console.log("Done", progress, "in", Date.now() - startOn);
-
       var unsat = checkSat(assignment, ins, previousUnsat, previousChanged, rulesDict);
 
       if(unsat.length == 0) {
@@ -49,11 +43,13 @@ function solve2Sat(ins) {
     }
   }
 
-  return false;
+  return ins.length == 0 ? true : false;
 }
 
 // section: Helpers
 
+// Calculate all bits of a given instance
+// @param {Array} ins
 // @return {Object}
 function calculateBits(ins) {
   var r = {};
@@ -66,6 +62,8 @@ function calculateBits(ins) {
   return r;
 }
 
+// Makes random assignment to a given instance
+// @param {Array} ins
 // @return {Object}
 function makeRandomAssignment(ins) {
   var bits = calculateBits(ins);
@@ -79,7 +77,7 @@ function makeRandomAssignment(ins) {
 }
 
 // Creates rules dictionary
-// @param {Object} ins
+// @param {Array} ins
 // @return {Object}
 function createRulesDictionary(ins) {
   var r = {};
@@ -99,9 +97,16 @@ function createRulesDictionary(ins) {
   return r;
 }
 
+// Check if assignment satisfied
+// @param {Object} assignment
+// @param {Array} ins
+// @param {Array} previousUnsat Previously unsatisfied rules
+// @param {Integer} changedBit Currently changed bit
+// @param {Object} rulesDict
 // @return {Array.<Array>}
 function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 
+  // Check all rules
   // @return {Boolean} true - satisfied, otherwise false
   function checkRule(rule) {
     var first = rule[0];
@@ -128,6 +133,7 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
     return r;
   }
 
+  // Check rules only affected by current change
   function checkChanged() {
     previousUnsat = previousUnsat.slice(0);
 
@@ -176,6 +182,8 @@ function checkSat(assignment, ins, previousUnsat, changedBit, rulesDict) {
 }
 
 // Clear instance from unnecessary rules
+// @param {Array} ins
+// @return {Array}
 function cleanInstance(ins) {
   ins = ins.slice(0);
 
@@ -200,9 +208,6 @@ function cleanInstance(ins) {
     constants = {};
 
     for(var i in ins) {
-
-      console.log("Check i", i);
-
       var rule = ins[i];
       var f = rule[0], s = rule[1];
 
